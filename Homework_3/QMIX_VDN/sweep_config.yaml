@@ -1,0 +1,31 @@
+program: main.py
+method: grid
+parameters:
+  algorithm:
+    values: ["VDN", "QMIX"]
+  batch_size:
+    values: [64, 128, 256]
+  lr:
+    values: [5e-4, 1e-4, 1e-3, 3e-3]
+  qmix_hidden_dim:
+    values: [32, 64]
+  hyper_hidden_dim:
+    values: [64, 128]
+  hyper_layers_num:
+    values: [1, 2]
+  rnn_hidden_dim:
+    values: [64, 128]
+  mlp_hidden_dim:
+    values: [64, 128]
+  use_orthogonal_init:
+    values: [True, False]
+  use_lr_decay:
+    values: [True, False]
+  use_RMS:
+    values: [True, False]
+  use_double_q:
+    values: [True, False]
+  use_hard_update:
+    values: [True, False]
+  target_update_freq:
+    values: [200, 500, 1000]
