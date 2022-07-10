@@ -41,7 +41,7 @@ class Runner:
         print("state_dim={}".format(self.args.state_dim))
         print("action_dim={}".format(self.args.action_dim))
         print("episode_limit={}".format(self.args.episode_limit))
-
+        print("gpu {}".format(self.args.device))
         # Create N agents
         # Note: instantiate ONLY ONE agent here according to the weight sharing principle.
         self.agent_n = QMIX(self.args)
@@ -72,10 +72,10 @@ class Runner:
 
             if self.replay_buffer.current_size >= self.args.batch_size:
                 # Training
-                # for _ in range(25):
-                self.agent_n.train(self.replay_buffer)
+                for _ in range(25):
+                    self.agent_n.train(self.replay_buffer)
 
-        self.evaluate_policy()
+        # self.evaluate_policy()
         self.env.close()
 
     def evaluate_policy(
@@ -186,7 +186,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=int(25*50000),
+        default=50000,
         help=" Maximum number of training steps",
     )
     parser.add_argument(
@@ -237,7 +237,7 @@ if __name__ == '__main__':
         help="The capacity of the replay buffer",
     )
     parser.add_argument(
-        "--batch_size", type=int, default=512, help="Batch size (the number of episodes)"
+        "--batch_size", type=int, default=32, help="Batch size (the number of episodes)"
     )
     parser.add_argument("--lr", type=float, default=5e-4, help="Learning rate")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
@@ -318,7 +318,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--target_update_freq",
         type=int,
-        default=200,
+        default=2000,
         help="Update frequency of the target network",
     )
     parser.add_argument("--tau", type=int, default=0.005, help="If use soft update")
@@ -333,6 +333,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.save_id = np.random.randint(10000)
     args.epsilon_decay = (args.epsilon - args.epsilon_min) / args.epsilon_decay_steps
+
+    args.device = np.random.randint(8)
 
     wandb.init(config=args, project="QMIX")
     args = wandb.config

@@ -1,12 +1,16 @@
 program: main.py
-method: grid
+method: random
 parameters:
   algorithm:
-    values: ["VDN", "QMIX"]
+    value: "QMIX"
   batch_size:
     values: [64, 128, 256]
   lr:
     values: [5e-4, 1e-4, 1e-3, 3e-3]
+  save_freq:
+    value: 50000
+  max_train_steps:
+    value: 1250000
   qmix_hidden_dim:
     values: [32, 64]
   hyper_hidden_dim:
@@ -15,17 +19,17 @@ parameters:
     values: [1, 2]
   rnn_hidden_dim:
     values: [64, 128]
-  mlp_hidden_dim:
-    values: [64, 128]
+  add_last_action:
+    value: True
+  add_agent_id:
+    value: True
   use_orthogonal_init:
-    values: [True, False]
+    value: True
   use_lr_decay:
     values: [True, False]
   use_RMS:
     values: [True, False]
   use_double_q:
-    values: [True, False]
+    value: True
   use_hard_update:
     values: [True, False]
-  target_update_freq:
-    values: [200, 500, 1000]

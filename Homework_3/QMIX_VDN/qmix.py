@@ -28,6 +28,8 @@ class QMIX(object):
         self.use_RMS = args.use_RMS
         self.use_lr_decay = args.use_lr_decay
 
+        self.device = torch.device("cuda", args.device)
+
         # Compute the input dimension
         self.input_dim = self.obs_dim
         if self.add_last_action:
@@ -48,6 +50,9 @@ class QMIX(object):
             self.target_Q_net = Q_network_MLP(args, self.input_dim)
         self.target_Q_net.load_state_dict(self.eval_Q_net.state_dict())
 
+        self.eval_Q_net.to(self.device)
+        self.target_Q_net.to(self.device)
+
         # Setup Mixing Network
         if self.algorithm == "QMIX":
             print("------algorithm: QMIX------")
@@ -60,6 +65,9 @@ class QMIX(object):
         else:
             raise NotImplementedError(f"{self.algorithm} Not supported!")
         self.target_mix_net.load_state_dict(self.eval_mix_net.state_dict())
+
+        self.eval_mix_net.to(self.device)
+        self.target_mix_net.to(self.device)
 
         # Setup optimizer
         self.eval_parameters = list(self.eval_mix_net.parameters()) + list(self.eval_Q_net.parameters())
@@ -98,13 +106,15 @@ class QMIX(object):
                 inputs = []
                 # obs_n.shape=(N，obs_dim)
                 obs_n = torch.tensor(obs_n, dtype=torch.float32)
+                obs_n = obs_n.to(self.device)
 
                 inputs.append(obs_n)
                 if self.add_last_action:
                     last_a_n = torch.tensor(last_onehot_a_n, dtype=torch.float32)
+                    last_a_n = last_a_n.to(self.device)
                     inputs.append(last_a_n)
                 if self.add_agent_id:
-                    inputs.append(torch.eye(self.N))
+                    inputs.append(torch.eye(self.N, device=self.device))
 
                 # inputs.shape=(N, inputs_dim)
                 inputs = torch.cat([x for x in inputs], dim=-1)
@@ -112,7 +122,7 @@ class QMIX(object):
                 q_value = self.eval_Q_net(inputs)
                 # avail_a_n = torch.tensor(avail_a_n, dtype=torch.float32)  # avail_a_n.shape=(N, action_dim)
                 # q_value[avail_a_n == 0] = -float('inf')  # Mask the unavailable actions
-                a_n = q_value.argmax(dim=-1).numpy()
+                a_n = q_value.argmax(dim=-1).cpu().numpy()
             return a_n
 
     def train(self, replay_buffer):
@@ -126,6 +136,7 @@ class QMIX(object):
         batch, max_episode_len = replay_buffer.sample()
         # inputs.shape=(bach_size, max_episode_len + 1, N, input_dim)
         inputs = self.get_inputs(batch, max_episode_len)
+        inputs = inputs.to(self.device)
 
         if self.use_rnn:
             self.eval_Q_net.rnn_hidden = None
@@ -172,22 +183,22 @@ class QMIX(object):
         # batch['a_n'].shape(batch_size,max_episode_len, N)
         # q_evals.shape(batch_size, max_episode_len, N)
         q_evals = torch.gather(
-            q_evals, dim=-1, index=batch['a_n'].unsqueeze(-1)
+            q_evals, dim=-1, index=(batch['a_n'].to(self.device)).unsqueeze(-1)
         ).squeeze(-1)
 
         # Compute q_total using QMIX or VDN, q_total.shape=(batch_size, max_episode_len, 1)
         if self.algorithm == "QMIX":
-            q_total_eval = self.eval_mix_net(q_evals, batch['s'][:, :-1])
-            q_total_target = self.target_mix_net(q_targets, batch['s'][:, 1:])
+            q_total_eval = self.eval_mix_net(q_evals, (batch['s'][:, :-1]).to(self.device))
+            q_total_target = self.target_mix_net(q_targets, (batch['s'][:, 1:]).to(self.device))
         else:
             q_total_eval = self.eval_mix_net(q_evals)
             q_total_target = self.target_mix_net(q_targets)
         # targets.shape=(batch_size,max_episode_len,1)
-        targets = batch['r'] + self.gamma * (1 - batch['dw']) * q_total_target
+        targets = batch['r'].to(self.device) + self.gamma * (1 - (batch['dw']).to(self.device)) * q_total_target
 
         td_error = q_total_eval - targets.detach()
-        mask_td_error = td_error * batch['active']
-        loss = (mask_td_error**2).sum() / batch['active'].sum()
+        mask_td_error = td_error * (batch['active']).to(self.device)
+        loss = (mask_td_error**2).sum() / ((batch['active']).to(self.device)).sum()
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -248,6 +259,6 @@ class QMIX(object):
     def save_model(self):
         torch.save(
             self.eval_Q_net.state_dict(),
-            "./model/{}_eval_rnn_{}_seed_{}_step_{}k.pth".format(self.algorithm, self.args.save_id, self.args.seed, int(self.train_step / 1000)
+            "./model/{}/eval_rnn_{}_seed_{}_step_{}k.pth".format(self.algorithm, self.args.save_id, self.args.seed, int(self.train_step / 1000)
             ),
         )
